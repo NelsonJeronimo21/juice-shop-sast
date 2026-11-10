@@ -1,0 +1,52 @@
+
+name: SAST con Bearer CLI # Nombre del pipeline.
+
+on: # Eventos que activan el pipeline.
+  push: # Se ejecuta al subir cambios.
+    branches: [main] # Solo en main.
+  pull_request: # Se ejecuta en Pull Requests.
+    branches: [main] # Pull Requests hacia main.
+  workflow_dispatch: {} # Permite ejecutarlo manualmente.
+
+permissions: # Permisos mínimos necesarios.
+  contents: read # Permite leer el código.
+  security-events: write # Permite subir resultados SARIF.
+
+jobs: # Trabajos del pipeline.
+  analisis_sast: # Nombre del trabajo.
+    runs-on: ubuntu-latest # Utiliza Ubuntu.
+    steps: # Pasos del análisis.
+
+      - name: Descargar codigo # Descarga el repositorio.
+        uses: actions/checkout@v4 # Acción de GitHub.
+
+      - name: Instalar Bearer CLI # Instala Bearer.
+        shell: bash # Utiliza Bash.
+        run: | # Comandos de instalación.
+          curl -sfL https://raw.githubusercontent.com/Bearer/bearer/main/contrib/install.sh | sh # Descarga e instala Bearer CLI.
+          sudo mv ./bin/bearer /usr/local/bin/bearer # Mueve el ejecutable a una ruta global.
+          bearer version # Verifica la version instalada.
+
+      - name: Crear carpeta de reportes # Prepara reportes.
+        run: mkdir -p reportes # Crea el directorio.
+
+      - name: Generar reporte SARIF # Análisis para GitHub.
+        run: bearer scan . --format sarif --output reportes/analisis.sarif --exit-code 0 # Analiza el repositorio completo.
+
+      - name: Generar reporte HTML # Informe descargable.
+        run: bearer scan . --format html --output reportes/analisis.html --exit-code 0 # Genera el informe HTML.
+
+      - name: Publicar resultados SARIF # Publica hallazgos.
+        if: always() # Ejecutar incluso si hubo hallazgos.
+        uses: github/codeql-action/upload-sarif@v4 # Acción oficial.
+        with: # Configuración del reporte.
+          sarif_file: reportes/analisis.sarif # Ruta del SARIF.
+          category: bearer # Categoría del análisis.
+
+      - name: Guardar reporte HTML # Publica el artefacto.
+        if: always() # Intenta guardar siempre.
+        uses: actions/upload-artifact@v4 # Acción oficial.
+        with: # Configuración del artefacto.
+          name: reporte-bearer-html # Nombre del reporte.
+          path: reportes/analisis.html # Ruta del HTML.
+          if-no-files-found: error # Avisa si falta el archivo.
