@@ -5,8 +5,17 @@ const router = express.Router()
 router.get('/demo', (req, res) => {
     const expression = String(req.query.expression || '')
 
-    // VULNERABILIDAD INTENCIONAL PARA LA PRUEBA SAST
-    const result = eval(expression)
+    const allowedValues: Record<string, number> = {
+        '2': 2,
+        '3': 3
+    }
+
+    const result = allowedValues[expression]
+
+    if (typeof result !== 'number') {
+        res.status(400).json({ error: 'Valor no permitido' })
+        return
+    }
 
     res.json({ result })
 })
